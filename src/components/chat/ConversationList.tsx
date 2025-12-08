@@ -6,7 +6,6 @@ import { formatDistanceToNow } from 'date-fns';
 import { User, Search, Edit } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import NotesBar from './NotesBar';
 
 interface Conversation {
   id: string;
@@ -145,7 +144,7 @@ const ConversationList: React.FC<ConversationListProps> = ({ selectedId, onSelec
   };
 
   return (
-    <div className="w-80 border-r border-border h-screen flex flex-col bg-card">
+    <div className="flex-1 flex flex-col bg-card overflow-hidden">
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">{profile?.username}</h2>
@@ -166,8 +165,6 @@ const ConversationList: React.FC<ConversationListProps> = ({ selectedId, onSelec
           />
         </div>
       </div>
-
-      <NotesBar />
 
       <div className="flex items-center justify-between px-4 py-2">
         <span className="font-semibold text-sm">Messages</span>
