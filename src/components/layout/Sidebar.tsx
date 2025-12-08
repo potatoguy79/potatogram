@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
+import { useIsMobile } from '@/hooks/use-mobile';
 import {
   Home,
   Search,
@@ -10,7 +11,6 @@ import {
   User,
   Settings,
   LogOut,
-  Grid3X3,
   Shield
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 const Sidebar: React.FC = () => {
   const { profile, signOut, isAdmin } = useAuth();
   const location = useLocation();
+  const isMobile = useIsMobile();
 
   const navItems = [
     { icon: Home, label: 'Home', path: '/' },
@@ -25,7 +26,6 @@ const Sidebar: React.FC = () => {
     { icon: MessageCircle, label: 'Messages', path: '/messages' },
     { icon: Heart, label: 'Notifications', path: '/notifications' },
     { icon: PlusSquare, label: 'Create', path: '/create' },
-    { icon: Grid3X3, label: 'Posts', path: '/posts' },
     { icon: User, label: 'Profile', path: '/profile' },
   ];
 
@@ -33,6 +33,25 @@ const Sidebar: React.FC = () => {
     if (path === '/') return location.pathname === '/';
     return location.pathname.startsWith(path);
   };
+
+  if (isMobile) {
+    return (
+      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 flex justify-around py-2">
+        {navItems.map(item => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={cn(
+              'flex flex-col items-center gap-1 p-2 text-muted-foreground',
+              isActive(item.path) && 'text-primary'
+            )}
+          >
+            <item.icon className="w-6 h-6" />
+          </NavLink>
+        ))}
+      </nav>
+    );
+  }
 
   return (
     <aside className="fixed left-0 top-0 h-screen w-64 bg-sidebar border-r border-sidebar-border flex flex-col p-4">
@@ -45,10 +64,7 @@ const Sidebar: React.FC = () => {
           <NavLink
             key={item.path}
             to={item.path}
-            className={cn(
-              'nav-item',
-              isActive(item.path) && 'nav-item-active'
-            )}
+            className={cn('nav-item', isActive(item.path) && 'nav-item-active')}
           >
             <item.icon className="w-6 h-6" />
             <span>{item.label}</span>
@@ -56,13 +72,7 @@ const Sidebar: React.FC = () => {
         ))}
 
         {isAdmin && (
-          <NavLink
-            to="/admin"
-            className={cn(
-              'nav-item text-primary',
-              isActive('/admin') && 'nav-item-active'
-            )}
-          >
+          <NavLink to="/admin" className={cn('nav-item text-primary', isActive('/admin') && 'nav-item-active')}>
             <Shield className="w-6 h-6" />
             <span>Admin</span>
           </NavLink>
@@ -70,17 +80,10 @@ const Sidebar: React.FC = () => {
       </nav>
 
       <div className="border-t border-sidebar-border pt-4 space-y-1">
-        <NavLink
-          to="/settings"
-          className={cn(
-            'nav-item',
-            isActive('/settings') && 'nav-item-active'
-          )}
-        >
+        <NavLink to="/settings" className={cn('nav-item', isActive('/settings') && 'nav-item-active')}>
           <Settings className="w-6 h-6" />
           <span>Settings</span>
         </NavLink>
-
         <button onClick={signOut} className="nav-item w-full">
           <LogOut className="w-6 h-6" />
           <span>Log out</span>
@@ -89,10 +92,7 @@ const Sidebar: React.FC = () => {
 
       {profile && (
         <div className="border-t border-sidebar-border pt-4 mt-4">
-          <NavLink
-            to="/profile"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors"
-          >
+          <NavLink to="/profile" className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-sidebar-accent transition-colors">
             <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden">
               {profile.avatar_url ? (
                 <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
