@@ -117,15 +117,15 @@ const AuthPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      <div className="w-full max-w-md animate-fade-in">
+    <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-md animate-fade-in flex-1 flex flex-col justify-center">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center">
-              <MessageCircle className="w-8 h-8 text-primary" />
+            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center text-4xl">
+              🥔
             </div>
           </div>
-          <h1 className="text-2xl font-semibold text-foreground">ChatApp</h1>
+          <h1 className="text-2xl font-semibold text-foreground">PotatoGram</h1>
           <p className="text-muted-foreground mt-2">
             {isSignUp ? 'Create your account' : 'Sign in to continue'}
           </p>
@@ -216,6 +216,13 @@ const AuthPage: React.FC = () => {
             {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
           </button>
         </div>
+      </div>
+
+      {/* Footer */}
+      <div className="w-full py-4 px-4 flex items-center justify-between text-xs text-muted-foreground">
+        <span>Last updated 12/7/25</span>
+        <span>Made by Potato_guy79 on Instagram</span>
+        <span>version 2.0</span>
       </div>
     </div>
   );
