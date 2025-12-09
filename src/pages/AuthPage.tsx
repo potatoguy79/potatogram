@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { MessageCircle, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { z } from 'zod';
 
 const signUpSchema = z.object({
@@ -76,8 +76,12 @@ const AuthPage: React.FC = () => {
         } else {
           toast({
             title: 'Welcome!',
-            description: 'Your account has been created.',
+            description: 'Your account has been created. You can now sign in.',
           });
+          // Switch to sign in after successful sign up
+          setIsSignUp(false);
+          setPassword('');
+          setConfirmPassword('');
         }
       } else {
         const result = signInSchema.safeParse({ username, password });
@@ -94,8 +98,7 @@ const AuthPage: React.FC = () => {
           return;
         }
 
-        const email = `${username}@chatapp.local`;
-        const { error } = await signIn(password, email);
+        const { error } = await signIn(password, username);
         
         if (error) {
           toast({
@@ -220,9 +223,9 @@ const AuthPage: React.FC = () => {
 
       {/* Footer */}
       <div className="w-full py-4 px-4 flex items-center justify-between text-xs text-muted-foreground">
-        <span>Last updated 12/7/25</span>
+        <span>Last updated 12/9/25</span>
         <span>Made by Potato_guy79 on Instagram</span>
-        <span>version 2.0</span>
+        <span>Version 3.0</span>
       </div>
     </div>
   );
