@@ -5,8 +5,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import MainLayout from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
-import { User, Settings, Grid3X3, Bookmark, Tag, Heart, MessageCircle } from 'lucide-react';
+import { User, Settings, Grid3X3, Bookmark, Tag, Heart, MessageCircle, Lock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import VerifiedBadge from '@/components/ui/VerifiedBadge';
 
 interface ProfileData {
   id: string;
@@ -16,6 +17,9 @@ interface ProfileData {
   avatar_url: string | null;
   bio: string | null;
   is_private: boolean;
+  is_verified?: boolean;
+  verified_type?: string | null;
+  badge_text?: string | null;
 }
 
 interface Post {
@@ -86,7 +90,6 @@ const ProfilePage: React.FC = () => {
       const { data: postsData } = await supabase.from('posts').select('*').eq('profile_id', profileData.id).order('created_at', { ascending: false });
       if (!postsData) return [];
       
-      // Get likes and comments count
       const postIds = postsData.map(p => p.id);
       const [likesData, commentsData] = await Promise.all([
         supabase.from('post_likes').select('post_id').in('post_id', postIds),
@@ -132,7 +135,6 @@ const ProfilePage: React.FC = () => {
         await supabase.from('follows').delete().eq('follower_id', myProfile.id).eq('following_id', profileData.id);
       } else {
         await supabase.from('follows').insert({ follower_id: myProfile.id, following_id: profileData.id });
-        // Create notification
         await supabase.from('notifications').insert({ profile_id: profileData.id, type: 'follow', actor_id: myProfile.id });
       }
     },
@@ -144,6 +146,9 @@ const ProfilePage: React.FC = () => {
   });
 
   const currentPosts = activeTab === 'posts' ? posts : activeTab === 'saved' ? savedPosts : taggedPosts;
+
+  // Check if we can see this profile (private account check)
+  const canViewProfile = isOwnProfile || !profileData?.is_private || isFollowing;
 
   if (isLoading) {
     return <MainLayout><div className="flex items-center justify-center h-screen"><p className="text-muted-foreground animate-pulse-soft">Loading...</p></div></MainLayout>;
@@ -168,7 +173,14 @@ const ProfilePage: React.FC = () => {
 
           <div className="flex-1 text-center md:text-left">
             <div className="flex flex-col md:flex-row items-center gap-4 mb-4">
-              <h1 className="text-xl font-light">{profileData.username}</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-light">{profileData.username}</h1>
+                <VerifiedBadge type={profileData.verified_type} className="w-5 h-5" />
+                {profileData.badge_text && (
+                  <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">{profileData.badge_text}</span>
+                )}
+                {profileData.is_private && <Lock className="w-4 h-4 text-muted-foreground" />}
+              </div>
               {isOwnProfile ? (
                 <div className="flex gap-2">
                   <Button variant="secondary" size="sm" onClick={() => navigate('/settings')}>Edit profile</Button>
@@ -194,51 +206,64 @@ const ProfilePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-t border-border">
-          <div className="flex justify-center gap-12">
-            <button onClick={() => setActiveTab('posts')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'posts' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-              <Grid3X3 className="w-4 h-4" />
-              <span className="text-xs font-medium uppercase tracking-wider">Posts</span>
-            </button>
-            {isOwnProfile && (
-              <button onClick={() => setActiveTab('saved')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'saved' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-                <Bookmark className="w-4 h-4" />
-                <span className="text-xs font-medium uppercase tracking-wider">Saved</span>
-              </button>
-            )}
-            <button onClick={() => setActiveTab('tagged')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'tagged' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
-              <Tag className="w-4 h-4" />
-              <span className="text-xs font-medium uppercase tracking-wider">Tagged</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Posts Grid */}
-        {currentPosts.length === 0 ? (
+        {/* Private account notice */}
+        {!canViewProfile && (
           <div className="py-16 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-foreground flex items-center justify-center">
-              {activeTab === 'posts' ? <Grid3X3 className="w-8 h-8" /> : activeTab === 'saved' ? <Bookmark className="w-8 h-8" /> : <Tag className="w-8 h-8" />}
-            </div>
-            <h3 className="text-2xl font-light mb-2">
-              {activeTab === 'posts' ? 'No posts yet' : activeTab === 'saved' ? 'No saved posts' : 'No tagged posts'}
-            </h3>
-            <p className="text-muted-foreground">
-              {activeTab === 'posts' && isOwnProfile ? 'Share your first post!' : 'Nothing to show here yet.'}
-            </p>
+            <Lock className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
+            <h3 className="text-xl font-medium mb-2">This Account is Private</h3>
+            <p className="text-muted-foreground">Follow this account to see their posts, stories, and notes.</p>
           </div>
-        ) : (
-          <div className="grid grid-cols-3 gap-1 mt-4">
-            {currentPosts.map((post: any) => (
-              <div key={post.id} className="aspect-square bg-muted relative group cursor-pointer">
-                <img src={post.media_url} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white">
-                  <div className="flex items-center gap-1"><Heart className="w-5 h-5 fill-white" /><span className="font-semibold">{post.likes_count || 0}</span></div>
-                  <div className="flex items-center gap-1"><MessageCircle className="w-5 h-5 fill-white" /><span className="font-semibold">{post.comments_count || 0}</span></div>
-                </div>
+        )}
+
+        {canViewProfile && (
+          <>
+            {/* Tabs */}
+            <div className="border-t border-border">
+              <div className="flex justify-center gap-12">
+                <button onClick={() => setActiveTab('posts')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'posts' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                  <Grid3X3 className="w-4 h-4" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Posts</span>
+                </button>
+                {isOwnProfile && (
+                  <button onClick={() => setActiveTab('saved')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'saved' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                    <Bookmark className="w-4 h-4" />
+                    <span className="text-xs font-medium uppercase tracking-wider">Saved</span>
+                  </button>
+                )}
+                <button onClick={() => setActiveTab('tagged')} className={`flex items-center gap-2 py-4 border-t-2 transition-colors ${activeTab === 'tagged' ? 'border-foreground text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
+                  <Tag className="w-4 h-4" />
+                  <span className="text-xs font-medium uppercase tracking-wider">Tagged</span>
+                </button>
               </div>
-            ))}
-          </div>
+            </div>
+
+            {/* Posts Grid */}
+            {currentPosts.length === 0 ? (
+              <div className="py-16 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full border-2 border-foreground flex items-center justify-center">
+                  {activeTab === 'posts' ? <Grid3X3 className="w-8 h-8" /> : activeTab === 'saved' ? <Bookmark className="w-8 h-8" /> : <Tag className="w-8 h-8" />}
+                </div>
+                <h3 className="text-2xl font-light mb-2">
+                  {activeTab === 'posts' ? 'No posts yet' : activeTab === 'saved' ? 'No saved posts' : 'No tagged posts'}
+                </h3>
+                <p className="text-muted-foreground">
+                  {activeTab === 'posts' && isOwnProfile ? 'Share your first post!' : 'Nothing to show here yet.'}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-1 mt-4">
+                {currentPosts.map((post: any) => (
+                  <div key={post.id} className="aspect-square bg-muted relative group cursor-pointer">
+                    <img src={post.media_url} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-6 text-white">
+                      <div className="flex items-center gap-1"><Heart className="w-5 h-5 fill-white" /><span className="font-semibold">{post.likes_count || 0}</span></div>
+                      <div className="flex items-center gap-1"><MessageCircle className="w-5 h-5 fill-white" /><span className="font-semibold">{post.comments_count || 0}</span></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
         )}
       </div>
     </MainLayout>
