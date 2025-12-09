@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -46,6 +47,7 @@ interface CloseFriend {
 }
 
 const SettingsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { profile, refreshProfile, user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { toast } = useToast();
@@ -248,7 +250,7 @@ const SettingsPage: React.FC = () => {
       items: [
         { icon: Bell, label: 'Notifications', onClick: () => setNotificationsOpen(true) },
         { icon: Lock, label: 'Privacy and security', onClick: () => setPrivacyOpen(true) },
-        { icon: Shield, label: 'Supervision', onClick: () => toast({ title: 'Supervision settings coming soon!' }) },
+        { icon: Shield, label: 'Terms of Service', onClick: () => navigate('/terms') },
         { icon: HelpCircle, label: 'Help', onClick: () => setHelpOpen(true) },
         { icon: Info, label: 'About', onClick: () => setAboutOpen(true) },
       ],
@@ -386,7 +388,21 @@ const SettingsPage: React.FC = () => {
             <div className="space-y-4 mt-4">
               <p className="text-muted-foreground text-sm">Manage your privacy and security settings.</p>
               <div className="space-y-3">
-                <div className="flex items-center justify-between py-2"><span>Private account</span><Switch defaultChecked={profile?.is_private} /></div>
+                <div className="flex items-center justify-between py-2">
+                  <div>
+                    <span>Private account</span>
+                    <p className="text-xs text-muted-foreground">Only followers can see your posts, stories, and notes</p>
+                  </div>
+                  <Switch 
+                    checked={profile?.is_private} 
+                    onCheckedChange={async (checked) => {
+                      if (!profile?.id) return;
+                      await supabase.from('profiles').update({ is_private: checked }).eq('id', profile.id);
+                      refreshProfile();
+                      toast({ title: checked ? 'Account is now private' : 'Account is now public' });
+                    }} 
+                  />
+                </div>
                 <div className="flex items-center justify-between py-2"><span>Two-factor authentication</span><Switch /></div>
                 <div className="flex items-center justify-between py-2"><span>Login activity alerts</span><Switch defaultChecked /></div>
               </div>
