@@ -275,9 +275,6 @@ export type Database = {
           created_at: string | null
           expires_at: string | null
           id: string
-          music_album_art: string | null
-          music_artist: string | null
-          music_track_name: string | null
           profile_id: string
         }
         Insert: {
@@ -285,9 +282,6 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
-          music_album_art?: string | null
-          music_artist?: string | null
-          music_track_name?: string | null
           profile_id: string
         }
         Update: {
@@ -295,9 +289,6 @@ export type Database = {
           created_at?: string | null
           expires_at?: string | null
           id?: string
-          music_album_art?: string | null
-          music_artist?: string | null
-          music_track_name?: string | null
           profile_id?: string
         }
         Relationships: [
@@ -549,39 +540,48 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          badge_text: string | null
           bio: string | null
           created_at: string | null
           display_name: string
           id: string
           is_private: boolean | null
+          is_verified: boolean | null
           last_seen: string | null
           updated_at: string | null
           user_id: string
           username: string
+          verified_type: string | null
         }
         Insert: {
           avatar_url?: string | null
+          badge_text?: string | null
           bio?: string | null
           created_at?: string | null
           display_name: string
           id?: string
           is_private?: boolean | null
+          is_verified?: boolean | null
           last_seen?: string | null
           updated_at?: string | null
           user_id: string
           username: string
+          verified_type?: string | null
         }
         Update: {
           avatar_url?: string | null
+          badge_text?: string | null
           bio?: string | null
           created_at?: string | null
           display_name?: string
           id?: string
           is_private?: boolean | null
+          is_verified?: boolean | null
           last_seen?: string | null
           updated_at?: string | null
           user_id?: string
           username?: string
+          verified_type?: string | null
         }
         Relationships: []
       }

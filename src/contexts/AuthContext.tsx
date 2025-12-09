@@ -13,6 +13,9 @@ interface Profile {
   is_private: boolean;
   last_seen: string;
   created_at: string;
+  is_verified?: boolean;
+  verified_type?: string | null;
+  badge_text?: string | null;
 }
 
 interface AuthContextType {
@@ -21,10 +24,13 @@ interface AuthContextType {
   profile: Profile | null;
   isLoading: boolean;
   isAdmin: boolean;
+  impersonatedProfile: Profile | null;
   signUp: (email: string, password: string, username: string, displayName: string) => Promise<{ error: Error | null }>;
   signIn: (password: string, username: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  impersonateUser: (targetProfile: Profile) => void;
+  exitImpersonation: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -41,6 +47,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [realProfile, setRealProfile] = useState<Profile | null>(null);
+  const [impersonatedProfile, setImpersonatedProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const navigate = useNavigate();
@@ -55,6 +63,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     
     if (data) {
       setProfile(data);
+      setRealProfile(data);
     }
     return data;
   };
@@ -82,7 +91,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }, 0);
       } else {
         setProfile(null);
+        setRealProfile(null);
         setIsAdmin(false);
+        setImpersonatedProfile(null);
       }
     });
 
@@ -122,22 +133,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const signIn = async (password: string, username: string) => {
-    // First find the user by username
-    const { data: profileData, error: profileError } = await supabase
-      .from('profiles')
-      .select('user_id')
-      .eq('username', username)
-      .maybeSingle();
-
-    if (profileError || !profileData) {
-      return { error: new Error('User not found') };
-    }
-
-    // Get the user's email from auth
-    const { data: userData } = await supabase.auth.admin?.getUserById(profileData.user_id) || {};
-    
-    // Since we can't get email directly, we'll need to use email from the username
-    // For this app, we'll construct email from username for simplicity
     const email = `${username}@chatapp.local`;
     
     const { error } = await supabase.auth.signInWithPassword({
@@ -151,13 +146,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     await supabase.auth.signOut();
     setProfile(null);
+    setRealProfile(null);
     setIsAdmin(false);
+    setImpersonatedProfile(null);
     navigate('/auth');
   };
 
   const refreshProfile = async () => {
     if (user) {
       await fetchProfile(user.id);
+    }
+  };
+
+  const impersonateUser = (targetProfile: Profile) => {
+    if (!isAdmin) return;
+    setImpersonatedProfile(targetProfile);
+    setProfile(targetProfile);
+  };
+
+  const exitImpersonation = () => {
+    setImpersonatedProfile(null);
+    if (realProfile) {
+      setProfile(realProfile);
     }
   };
 
@@ -168,10 +178,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       profile,
       isLoading,
       isAdmin,
+      impersonatedProfile,
       signUp,
       signIn,
       signOut,
       refreshProfile,
+      impersonateUser,
+      exitImpersonation,
     }}>
       {children}
     </AuthContext.Provider>

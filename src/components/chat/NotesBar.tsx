@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { User, Music, Heart } from 'lucide-react';
+import { User, Heart } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -19,9 +19,6 @@ import { cn } from '@/lib/utils';
 interface Note {
   id: string;
   content: string;
-  music_track_name: string | null;
-  music_artist: string | null;
-  music_album_art: string | null;
   created_at: string;
   profile: {
     id: string;
@@ -38,9 +35,6 @@ const NotesBar: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [noteContent, setNoteContent] = useState('');
-  const [trackName, setTrackName] = useState('');
-  const [artist, setArtist] = useState('');
-  const [albumArt, setAlbumArt] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -93,9 +87,6 @@ const NotesBar: React.FC = () => {
       await supabase.from('notes').insert({
         profile_id: profile.id,
         content: noteContent.trim(),
-        music_track_name: trackName || null,
-        music_artist: artist || null,
-        music_album_art: albumArt || null,
       });
     },
     onSuccess: () => {
@@ -103,9 +94,6 @@ const NotesBar: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['my-note'] });
       setIsOpen(false);
       setNoteContent('');
-      setTrackName('');
-      setArtist('');
-      setAlbumArt('');
       toast({ title: 'Note shared!' });
     },
     onError: () => toast({ title: 'Failed to share note', variant: 'destructive' }),
@@ -118,7 +106,6 @@ const NotesBar: React.FC = () => {
         await supabase.from('note_likes').delete().eq('note_id', note.id).eq('profile_id', profile.id);
       } else {
         await supabase.from('note_likes').insert({ note_id: note.id, profile_id: profile.id });
-        // Notification
         if (note.profile.id !== profile.id) {
           await supabase.from('notifications').insert({ profile_id: note.profile.id, type: 'like', actor_id: profile.id, content_type: 'note', content_id: note.id });
         }
@@ -162,14 +149,6 @@ const NotesBar: React.FC = () => {
                 <Input value={noteContent} onChange={e => setNoteContent(e.target.value)} placeholder="Share a thought..." maxLength={60} className="bg-secondary border-0" />
                 <p className="text-xs text-muted-foreground text-right">{noteContent.length}/60</p>
               </div>
-              <div className="border-t border-border pt-4">
-                <div className="flex items-center gap-2 mb-3"><Music className="w-4 h-4 text-muted-foreground" /><span className="text-sm font-medium">Add music (optional)</span></div>
-                <div className="space-y-2">
-                  <Input value={trackName} onChange={e => setTrackName(e.target.value)} placeholder="Song name" className="bg-secondary border-0" />
-                  <Input value={artist} onChange={e => setArtist(e.target.value)} placeholder="Artist" className="bg-secondary border-0" />
-                  <Input value={albumArt} onChange={e => setAlbumArt(e.target.value)} placeholder="Album art URL (or search online)" className="bg-secondary border-0" />
-                </div>
-              </div>
               <Button onClick={() => createNoteMutation.mutate()} disabled={!noteContent.trim() || createNoteMutation.isPending} className="w-full">
                 {createNoteMutation.isPending ? 'Sharing...' : 'Share note'}
               </Button>
@@ -181,18 +160,9 @@ const NotesBar: React.FC = () => {
         {notes.filter(note => note.profile.id !== profile?.id).map(note => (
           <button key={note.id} onClick={() => setSelectedNote(note)} className="flex flex-col items-center gap-1 min-w-fit group">
             <div className="relative">
-              {/* Note bubble above avatar */}
               <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-card border border-border rounded-xl px-2 py-1 max-w-24 shadow-md z-10">
                 <p className="text-[10px] truncate text-center">{note.content}</p>
-                {note.music_track_name && (
-                  <p className="text-[8px] text-primary truncate text-center">♪ {note.music_track_name}</p>
-                )}
               </div>
-              {note.music_track_name && (
-                <div className="absolute -top-1 -right-1 w-5 h-5 bg-primary rounded-full flex items-center justify-center z-20">
-                  <Music className="w-3 h-3 text-primary-foreground" />
-                </div>
-              )}
               <div className="w-14 h-14 rounded-full bg-muted flex items-center justify-center overflow-hidden mt-2 group-hover:ring-2 ring-primary transition-all">
                 {note.profile.avatar_url ? (
                   <img src={note.profile.avatar_url} alt={note.profile.username} className="w-full h-full object-cover" />
@@ -224,19 +194,6 @@ const NotesBar: React.FC = () => {
               <div className="bg-secondary rounded-xl p-4">
                 <p className="text-lg">{selectedNote.content}</p>
               </div>
-              {selectedNote.music_track_name && (
-                <div className="flex items-center gap-3 bg-secondary rounded-xl p-3">
-                  {selectedNote.music_album_art ? (
-                    <img src={selectedNote.music_album_art} alt="" className="w-12 h-12 rounded-lg object-cover" />
-                  ) : (
-                    <div className="w-12 h-12 rounded-lg bg-primary flex items-center justify-center"><Music className="w-6 h-6 text-primary-foreground" /></div>
-                  )}
-                  <div className="flex-1 text-left">
-                    <p className="font-medium text-sm">{selectedNote.music_track_name}</p>
-                    <p className="text-xs text-muted-foreground">{selectedNote.music_artist}</p>
-                  </div>
-                </div>
-              )}
               <button
                 onClick={() => likeMutation.mutate(selectedNote)}
                 className="flex items-center justify-center gap-2 w-full py-2 rounded-lg hover:bg-accent transition-colors"
