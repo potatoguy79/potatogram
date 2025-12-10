@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import MainLayout from '@/components/layout/MainLayout';
 import StoriesBar from '@/components/stories/StoriesBar';
-import NotesBar from '@/components/chat/NotesBar';
 import PostCard from '@/components/posts/PostCard';
 import CreatePostDialog from '@/components/posts/CreatePostDialog';
 import { Button } from '@/components/ui/button';
@@ -21,6 +20,8 @@ interface Post {
     username: string;
     display_name: string;
     avatar_url: string | null;
+    is_verified?: boolean;
+    verified_type?: string | null;
   };
   likes_count: number;
   comments_count: number;
@@ -31,7 +32,6 @@ interface Post {
 const HomePage: React.FC = () => {
   const { profile } = useAuth();
   const [createOpen, setCreateOpen] = useState(false);
-  const queryClient = useQueryClient();
 
   const { data: posts = [], isLoading } = useQuery({
     queryKey: ['feed-posts', profile?.id],
@@ -55,7 +55,9 @@ const HomePage: React.FC = () => {
             id,
             username,
             display_name,
-            avatar_url
+            avatar_url,
+            is_verified,
+            verified_type
           )
         `)
         .in('profile_id', followingIds)
@@ -116,7 +118,6 @@ const HomePage: React.FC = () => {
     <MainLayout>
       <div className="max-w-xl mx-auto">
         <StoriesBar />
-        <NotesBar />
         
         {/* Create post button */}
         <div className="p-4 border-b border-border">
