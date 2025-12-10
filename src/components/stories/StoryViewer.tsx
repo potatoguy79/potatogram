@@ -152,9 +152,9 @@ const StoryViewer: React.FC<StoryViewerProps> = ({ stories, profile, onClose }) 
         {/* Story content */}
         <div className="w-full h-full flex items-center justify-center">
           {currentStory.media_type === 'video' ? (
-            <video src={currentStory.media_url} autoPlay muted className="w-full h-full object-contain" />
+            <video src={currentStory.media_url} autoPlay loop muted playsInline className="w-full h-full object-contain" />
           ) : (
-            <img src={currentStory.media_url} alt="Story" className="w-full h-full object-contain" />
+            <img src={currentStory.media_url} alt="Story" className="w-full h-full object-contain" onLoad={() => setProgress(0)} />
           )}
         </div>
 

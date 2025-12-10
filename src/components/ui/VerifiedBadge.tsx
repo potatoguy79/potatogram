@@ -2,12 +2,13 @@ import React from 'react';
 import { BadgeCheck } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface VerifiedBadgeProps {
+export interface VerifiedBadgeProps {
   type: 'blue' | 'red' | 'gold' | string | null | undefined;
   className?: string;
+  size?: 'sm' | 'md' | 'lg';
 }
 
-const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({ type, className }) => {
+const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({ type, className, size = 'md' }) => {
   if (!type) return null;
 
   const colorClass = {
@@ -16,8 +17,14 @@ const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({ type, className }) => {
     gold: 'text-yellow-500',
   }[type] || 'text-primary';
 
+  const sizeClass = {
+    sm: 'w-3.5 h-3.5',
+    md: 'w-4 h-4',
+    lg: 'w-5 h-5',
+  }[size];
+
   return (
-    <BadgeCheck className={cn('w-4 h-4 fill-current', colorClass, className)} />
+    <BadgeCheck className={cn('fill-current', sizeClass, colorClass, className)} />
   );
 };
 

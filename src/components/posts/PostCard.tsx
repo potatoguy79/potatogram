@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
 import { Heart, MessageCircle, Send, Bookmark, MoreHorizontal, User, Flag } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -21,6 +21,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import VerifiedBadge from '@/components/ui/VerifiedBadge';
+import SharePostDialog from './SharePostDialog';
+import LikesDialog from './LikesDialog';
 
 interface Post {
   id: string;
@@ -33,6 +36,8 @@ interface Post {
     username: string;
     display_name: string;
     avatar_url: string | null;
+    is_verified?: boolean;
+    verified_type?: string | null;
   };
   likes_count: number;
   comments_count: number;
@@ -50,6 +55,8 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [commentsOpen, setCommentsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [likesOpen, setLikesOpen] = useState(false);
   const [comment, setComment] = useState('');
   const [localIsLiked, setLocalIsLiked] = useState(post.is_liked);
   const [localLikesCount, setLocalLikesCount] = useState(post.likes_count);
@@ -187,7 +194,12 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
               <User className="w-4 h-4 text-muted-foreground" />
             )}
           </div>
-          <span className="font-medium text-sm">{post.profile.username}</span>
+          <span className="font-medium text-sm flex items-center gap-1">
+            {post.profile.username}
+            {post.profile.is_verified && (
+              <VerifiedBadge type={post.profile.verified_type || 'blue'} />
+            )}
+          </span>
         </button>
         
         <DropdownMenu>
@@ -210,7 +222,10 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         {post.media_type === 'video' ? (
           <video
             src={post.media_url}
-            controls
+            autoPlay
+            loop
+            muted
+            playsInline
             className="w-full h-full object-cover"
           />
         ) : (
@@ -241,7 +256,10 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
             >
               <MessageCircle className="w-6 h-6" />
             </button>
-            <button className="hover:opacity-70 transition-opacity">
+            <button 
+              onClick={() => setShareOpen(true)}
+              className="hover:opacity-70 transition-opacity"
+            >
               <Send className="w-6 h-6" />
             </button>
           </div>
@@ -257,9 +275,12 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
         </div>
 
         {/* Likes count */}
-        <p className="font-semibold text-sm mb-1">
+        <button 
+          onClick={() => setLikesOpen(true)}
+          className="font-semibold text-sm mb-1 hover:underline"
+        >
           {localLikesCount} {localLikesCount === 1 ? 'like' : 'likes'}
-        </p>
+        </button>
 
         {/* Caption */}
         {post.caption && (
@@ -310,26 +331,56 @@ const PostCard: React.FC<PostCardProps> = ({ post }) => {
           <DialogHeader>
             <DialogTitle>Comments</DialogTitle>
           </DialogHeader>
-          <CommentsSection postId={post.id} />
+          <CommentsSection postId={post.id} postOwnerId={post.profile.id} />
         </DialogContent>
       </Dialog>
+
+      {/* Share Dialog */}
+      <SharePostDialog 
+        open={shareOpen} 
+        onOpenChange={setShareOpen} 
+        postId={post.id}
+        postUrl={post.media_url}
+      />
+
+      {/* Likes Dialog */}
+      <LikesDialog
+        open={likesOpen}
+        onOpenChange={setLikesOpen}
+        postId={post.id}
+      />
     </article>
   );
 };
 
-const CommentsSection: React.FC<{ postId: string }> = ({ postId }) => {
+interface CommentWithLikes {
+  id: string;
+  content: string;
+  created_at: string;
+  profile: {
+    id: string;
+    username: string;
+    display_name: string;
+    avatar_url: string | null;
+  };
+  likes_count: number;
+  is_liked: boolean;
+}
+
+const CommentsSection: React.FC<{ postId: string; postOwnerId: string }> = ({ postId, postOwnerId }) => {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [comment, setComment] = useState('');
-  const { toast } = useToast();
 
   const { data: comments = [] } = useQuery({
     queryKey: ['post-comments', postId],
-    queryFn: async () => {
+    queryFn: async (): Promise<CommentWithLikes[]> => {
       const { data, error } = await supabase
         .from('post_comments')
         .select(`
-          *,
+          id,
+          content,
+          created_at,
           profile:profiles (
             id,
             username,
@@ -341,7 +392,59 @@ const CommentsSection: React.FC<{ postId: string }> = ({ postId }) => {
         .order('created_at', { ascending: true });
 
       if (error) throw error;
-      return data;
+
+      // Get like counts using raw SQL via rpc or manual count
+      // Since comment_likes is new, we'll handle it gracefully
+      const commentIds = data?.map(c => c.id) || [];
+      
+      // Fetch comment likes manually
+      const likesResponse = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/comment_likes?comment_id=in.(${commentIds.join(',')})&select=comment_id`,
+        {
+          headers: {
+            'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+          },
+        }
+      );
+      
+      let likeCounts: { comment_id: string }[] = [];
+      let userLikes: { comment_id: string }[] = [];
+      
+      if (likesResponse.ok) {
+        likeCounts = await likesResponse.json();
+        
+        if (profile?.id) {
+          const userLikesResponse = await fetch(
+            `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/comment_likes?comment_id=in.(${commentIds.join(',')})&profile_id=eq.${profile.id}&select=comment_id`,
+            {
+              headers: {
+                'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+              },
+            }
+          );
+          if (userLikesResponse.ok) {
+            userLikes = await userLikesResponse.json();
+          }
+        }
+      }
+
+      const likeCountMap: Record<string, number> = {};
+      likeCounts.forEach(l => {
+        likeCountMap[l.comment_id] = (likeCountMap[l.comment_id] || 0) + 1;
+      });
+
+      const userLikedSet = new Set(userLikes.map(l => l.comment_id));
+
+      return (data || []).map(c => ({
+        id: c.id,
+        content: c.content,
+        created_at: c.created_at,
+        profile: c.profile as any,
+        likes_count: likeCountMap[c.id] || 0,
+        is_liked: userLikedSet.has(c.id),
+      }));
     },
   });
 
@@ -353,6 +456,18 @@ const CommentsSection: React.FC<{ postId: string }> = ({ postId }) => {
         profile_id: profile.id,
         content: comment.trim(),
       });
+
+      // Create notification
+      if (postOwnerId !== profile.id) {
+        await supabase.from('notifications').insert({
+          profile_id: postOwnerId,
+          type: 'comment',
+          actor_id: profile.id,
+          content_type: 'post',
+          content_id: postId,
+          message: comment.trim().slice(0, 100),
+        });
+      }
     },
     onSuccess: () => {
       setComment('');
@@ -367,25 +482,8 @@ const CommentsSection: React.FC<{ postId: string }> = ({ postId }) => {
         {comments.length === 0 ? (
           <p className="text-center text-muted-foreground">No comments yet</p>
         ) : (
-          comments.map((c: any) => (
-            <div key={c.id} className="flex gap-3">
-              <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
-                {c.profile.avatar_url ? (
-                  <img src={c.profile.avatar_url} alt="" className="w-full h-full object-cover" />
-                ) : (
-                  <User className="w-4 h-4 text-muted-foreground" />
-                )}
-              </div>
-              <div>
-                <p className="text-sm">
-                  <span className="font-semibold mr-2">{c.profile.username}</span>
-                  {c.content}
-                </p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {formatDistanceToNow(new Date(c.created_at), { addSuffix: true })}
-                </p>
-              </div>
-            </div>
+          comments.map((c) => (
+            <CommentItem key={c.id} comment={c} postId={postId} />
           ))
         )}
       </div>
@@ -408,7 +506,80 @@ const CommentsSection: React.FC<{ postId: string }> = ({ postId }) => {
   );
 };
 
-// Need to import useQuery in the component
-import { useQuery } from '@tanstack/react-query';
+const CommentItem: React.FC<{ comment: CommentWithLikes; postId: string }> = ({ comment, postId }) => {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const [isLiked, setIsLiked] = useState(comment.is_liked);
+  const [likesCount, setLikesCount] = useState(comment.likes_count);
+
+  const likeMutation = useMutation({
+    mutationFn: async () => {
+      if (!profile?.id) return;
+      
+      const headers = {
+        'apikey': import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      };
+      
+      if (isLiked) {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/comment_likes?comment_id=eq.${comment.id}&profile_id=eq.${profile.id}`,
+          { method: 'DELETE', headers }
+        );
+      } else {
+        await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/comment_likes`,
+          { 
+            method: 'POST', 
+            headers,
+            body: JSON.stringify({ comment_id: comment.id, profile_id: profile.id })
+          }
+        );
+      }
+    },
+    onMutate: () => {
+      setIsLiked(!isLiked);
+      setLikesCount(prev => isLiked ? prev - 1 : prev + 1);
+    },
+    onError: () => {
+      setIsLiked(isLiked);
+      setLikesCount(likesCount);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['post-comments', postId] });
+    },
+  });
+
+  return (
+    <div className="flex gap-3">
+      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center overflow-hidden flex-shrink-0">
+        {comment.profile.avatar_url ? (
+          <img src={comment.profile.avatar_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <User className="w-4 h-4 text-muted-foreground" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className="text-sm">
+          <span className="font-semibold mr-2">{comment.profile.username}</span>
+          {comment.content}
+        </p>
+        <div className="flex items-center gap-3 mt-1">
+          <p className="text-xs text-muted-foreground">
+            {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+          </p>
+          {likesCount > 0 && (
+            <p className="text-xs text-muted-foreground">{likesCount} likes</p>
+          )}
+        </div>
+      </div>
+      <button onClick={() => likeMutation.mutate()} className="hover:opacity-70">
+        <Heart className={cn("w-4 h-4", isLiked && "fill-destructive text-destructive")} />
+      </button>
+    </div>
+  );
+};
 
 export default PostCard;
